@@ -1,0 +1,86 @@
+
+
+(define (open-options)
+  
+  ((draw-solid-rectangle option) (make-posn 0 0) 500 500 "yellow")
+  ((draw-pixmap option) "human-player.png" (make-posn 100 50))
+  
+  (define size-x 40)
+  (define size-y 40)
+  (define x-index 150)
+  (define y-index 150)
+  (define y-offset 50)
+  
+  (define y-play 300)
+  (define x-play 300)
+  ;((draw-pixmap option) "1y.png" (make-posn x-index y0inde))
+  ;((draw-pixmap option) "2y.png" (make-posn x-index ))
+  ;((draw-pixmap option) "3y.png" (make-posn x-index 280))
+  ;((draw-pixmap option) "4y.png" (make-posn x-index 330))
+  ;((draw-pixmap option) "5y.png" (make-posn x-index 380))
+  ;((draw-pixmap option) "6y.png" (make-posn x-index 430))
+  
+  ((draw-pixmap option) "Play.png" (make-posn x-play y-play))
+  
+  (define num-vector (make-vector 7 #f))
+  (define num-vec (build-vector 7 (lambda (x)  x)))
+  
+  (define (fill-vector)
+    (define (helper j)
+      (if (= j 7) (void) 
+          (begin
+            (vector-set! num-vector j (cons x-index (+ y-index (* j y-offset))))
+            ((draw-pixmap option) (string-append (number->string  j) "y.png") (make-posn x-index  (+ y-index (* j y-offset))))
+            (helper (+ j 1)))))
+    (helper 0))
+  
+  
+  (fill-vector)                                   
+  
+  
+  
+  (define (clicking-options)
+    
+    (define (get-true vec)
+      (define (helper i)
+        (cond[(= i 7) #f]
+             [(vector-ref vec i) i]
+             [else (helper (+ i 1))]))
+      (helper 0))
+    
+    (let* ([mouse (get-mouse-click option)]
+           [mouse-clk (mouse-click-posn mouse)]
+           [i (posn-x mouse-clk)]
+           [j (posn-y mouse-clk)])
+      
+      (cond [(and (> (- i x-play) 0) (< (- i x-play) 100) (> (- j y-play) 0) 
+                  (< (- j y-play) 100) (> no-human-ply 0)  (< no-human-ply 7)) (begin
+                                                                                 (assign-human-players no-human-ply)
+                                                                                 (close-viewport option)
+                                                                                 (draw-board)
+                                                                                 (play-game hplayer))]
+            [(and (> (- i x-play) 0) (< (- i x-play) 100) (> (- j y-play) 0) (< (- j y-play) 100)) (clicking-options)]
+            
+            [else 
+             
+             (define vec  (vector-map (lambda(x) (let ([x1 (car x)]
+                                                       [y1 (cdr x)])
+                                                   (if (and (< (- i x1) 40) (> (- i x1) 0) (< (- j y1) 40) (> (- j y1) 0)) #t
+                                                       #f)))  num-vector))
+             
+             (if (get-true vec) (begin
+                                  (let ([n (get-true vec)])
+                                    (begin
+                                      (if(> no-human-ply 7) (void) 
+                                         ((draw-pixmap option) (string-append (number->string  no-human-ply) "y.png") 
+                                                               (make-posn (car (vector-ref num-vector no-human-ply ))   
+                                                                          (cdr (vector-ref num-vector no-human-ply )))))
+                                      
+                                      ((draw-pixmap option) (string-append (number->string n) "b.png") 
+                                                            (make-posn (car (vector-ref num-vector n))   
+                                                                       (cdr (vector-ref num-vector n))))
+                                      (set! no-human-ply n )))
+                                  (clicking-options))
+                 (clicking-options))])))
+  
+  (clicking-options))

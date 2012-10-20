@@ -1,0 +1,62 @@
+
+(define (next player)
+  (let([i (color->index (send player get-color))])
+    (vector-ref all-balls (remainder (+ 1 i) 6))))
+
+
+(define (search-tree player)
+  (define depth 0)
+  (define (search-tree-h player l)
+    (if(> depth 1) (leaf l)
+       (let* ([ind (color->index (send player get-color))]
+              [all-moves 
+               (begin
+                 (do-many-move l)
+                 (let([x (send player generate-all-moves-for-the-set)])
+                   (begin
+                     (undo-many-move l)
+                     x)))])  
+         (begin 
+           (set! depth (+ depth 1))
+           (gnode l (map (lambda(x) (search-tree-h (next player) (cons x l))) all-moves))))))
+  (search-tree-h player '()))
+
+
+
+
+(define (show x) (begin (display x) x))
+(define (best-possible-move search-tree player)
+  (define move (cons 0 0))
+  ; (define evaluated-tree '())
+  
+  (define (helper tree player) 
+    (cond[(leaf? tree)  (begin 
+                          (do-many-move (leaf-moves tree))
+                          (let ([z (evaluate-board player)])
+                            (begin
+                              (undo-many-move (leaf-moves tree))
+                              (if(> z (car move)) (set! move (cons z (leaf-moves tree)))  (void)))))]
+         [else (map (lambda(x) (helper x player)) (gnode-move_list tree))]))
+  (begin (helper search-tree player)
+         (show move)))
+
+
+
+; (define evaluated-tree  (map (lambda(x) 
+;                            (if (gnode? x) (map (lambda(y) (helper y player)) (gnode-move_list x))
+;                                (begin 
+;                                  (do-many-move (leaf-moves x))
+;                                  (let ([z (evaluate-board player)])
+;                                    (begin
+;                                      (undo-many-move (leaf-moves x))
+;                                      (if(> z (car move)) (set! move (cons z (leaf-moves x)))  (void)))) 
+;                              (list search-tree)))
+;  
+;  (foldr (lambda (fst acc) (if (> (car fst) (car acc)) fst acc)) (cons 0 0) evaluated-tree)
+;  
+; )
+;  
+;    
+;    
+;  
+;     

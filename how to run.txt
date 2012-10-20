@@ -1,0 +1,6 @@
+Please open the chinese checkers folder.
+Then run chinese checkers click on the chinese-checkers 
+executable.
+
+The main file in the code is board-idea-change.scm
+then click run in dr racket.

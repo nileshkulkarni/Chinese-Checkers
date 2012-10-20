@@ -1,0 +1,80 @@
+(define (last-elm-list l)
+  (cond[(equal? l '()) (error "list is empty")]
+       [(equal? (cdr l) '()) (car l)]
+       [else (last-elm-list (cdr l))]))
+
+(define (play-game vec);;vec is the hplayer vector;
+  
+  (define i 0)
+  
+  (define (next) (begin
+                     (set! i (remainder (+ i 1) 6))
+                     i))
+  
+  (define (helper-computer player);;player is an object of class ball-set
+    (let* ([search_tree (search-tree player)]
+           [y (best-possible-move search_tree player)]
+           [x (last-elm-list y)])
+      (begin
+        (make-move x)
+        (let([t (next)])
+        (if(vector-ref vec t) (begin
+                                (helper-human (vector-ref vec t)))
+           
+             (helper-computer (vector-ref cplayer t)))))))
+  
+  
+  (define (helper-human player);;
+    
+    (define (clicking) 
+      (begin
+        (let* ([mouse-clk (get-mouse-click view-port)]
+               [mouse (mouse-click-posn mouse-clk)])
+          (let ([x (find-ball (posn-x mouse) (posn-y mouse))])
+            (cond [(not x) (clicking)]
+                  ;[(right-mouse-click? mouse-clk) (right-mouse x)]   ;;;left mouse click implies the jump is not complete yet
+                  [(equal? 'null (send x get-state)) (clicking)]
+                  [(left-mouse-click? mouse-clk) (left-mouse x)] ;;
+                  )))))
+    
+    (define (show x ) (begin (display x) x))
+    
+    (define (left-mouse hole)
+      (let* ([mouse-clk (get-mouse-click view-port)]
+             [mouse (mouse-click-posn mouse-clk)])
+        (let ([x (find-ball (posn-x mouse) (posn-y mouse))])
+          (cond [(not x) (left-mouse hole)]
+                [(or (right-mouse-click? mouse-clk) (not (equal? (send x get-state) 'null))) (clicking)] 
+                ;[(left-mouse-click? mouse-clk) (right-mouse hole x)]
+                [(left-mouse-click? mouse-clk) (if (equal? (send x get-state)'null);;;remember to put an if here
+                                                   ;for the if the hole doesnot contain a ball
+                                                   (let* ([ball (get-ball hole)])
+                                                     (if ball
+                                                         (if (equal? (send ball get-color) (send (vector-ref hplayer i) get-color))
+                                                             (let* ([moves (send ball get-possible-index)]
+                                                                    [s (my-assq (send x get-index) moves)])
+                                                               (begin
+                                                                 (display moves)
+                                                                 (newline)
+                                                                 (if (not s) (clicking)
+                                                                     (begin
+                                                                       (send ball index-set! (send x get-index))
+                                                                       (let ([col (send ball get-color)]
+                                                                             [posin (change-a-bit(send hole get-position))]
+                                                                             [posfin (change-a-bit(send x get-position))])
+                                                                         (begin
+                                                                           ((draw-pixmap view-port) "hole.png" posin)
+                                                                           ((draw-pixmap view-port) (string-append (symbol->string col) ".png") posfin)
+                                                                           (let ([t (next)])
+                                                                             (if (vector-ref hplayer t) (helper-human (vector-ref hplayer t))
+                                                                                 (helper-computer (vector-ref cplayer t))))))
+                                                                       (clicking))))) (clicking))
+                                                         (clicking)))
+                                                   (clicking))]))))
+    (clicking))
+    
+    
+    
+
+(if(vector-ref vec i) (helper-human (vector-ref hplayer i))
+   (helper-computer (vector-ref cplayer i))))

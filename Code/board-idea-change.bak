@@ -1,0 +1,339 @@
+;ll classes define
+#lang racket
+
+
+
+(include "hole-class.scm")
+(include "ball-class.scm")
+(include "board-class.scm")
+(include "ball-set-class.scm")
+(include "functions.scm")
+(include "rotation-trans.rkt")
+(include "implement-move.scm")
+
+;(include "image-making.ss")
+(struct gnode (moves_list move_list) #:transparent)   
+;moves-list : wahan tak pahunchne ke sareh moves
+;move-list : all-possible-moves for player
+(struct leaf (moves) #:transparent)   ;equivalent to gnode(moves-list '())
+(struct move_ (from to val player) #:transparent)
+(struct move-start (player) #:transparent)
+(define hplayer (build-vector 6 (lambda (x) #f)))
+
+(define cplayer (build-vector 6 (lambda (x) #f)))
+
+
+
+(define (make-vector-2d r c initial)
+  (build-vector r (lambda(x)  (make-vector c initial))))
+
+(define (2d-vector-ref vec r c)
+  (vector-ref  (vector-ref vec r) c))
+
+(define (2d-vector-set!  vec r c value)
+  (vector-set! (vector-ref  vec r) c  value))
+
+(define (build-2d-vector r c f)
+  (build-vector r (lambda(x) (build-vector c (lambda(y) (f x y))))))
+
+
+(define cur-board (new board%))
+
+
+(define all-balls (make-vector 6 #\ ))
+
+(vector-set! all-balls 0 (new ball-set% [col 'blue]))
+(vector-set! all-balls 1 (new ball-set% [col 'green]))
+(vector-set! all-balls 2 (new ball-set% [col 'black]))
+(vector-set! all-balls 3 (new ball-set% [col 'yellow]))
+(vector-set! all-balls 4 (new ball-set% [col 'orange]))
+(vector-set! all-balls 5 (new ball-set% [col 'red]))
+
+
+;;;;;Artificial Intelligence Implemenation;;;;;;
+
+(define (vector-assq v1 m)
+  (let ([le (vector-length v1)])
+    (define (helper i)
+      (cond[(= le i) #f] 
+           [(equal? (car (vector-ref  v1 i)) m) (vector-ref  v1 i)]
+           [else (helper (+ i 1))]))
+    (helper 0)))
+;    <
+(define (search-ball ind player);;;returns the ball along with its current index (cons index ball)
+  (let* ([ball-vec (send player get-all-balls)]
+         [all-indexes (vector-map (lambda (x) (cons (send x get-index) x)) ball-vec)])
+    (cond [(equal? #f (vector-assq all-indexes ind)) (error "The ball does not exist at that location")]
+          [else (vector-assq all-indexes ind)])))
+
+
+
+(define (undo-many-move move-list) ;;(mlist mov3 mov2 mov1)
+  (if (null? move-list) (void)
+      (let* ([move (car move-list)]
+             ;[color (send player get-color)]
+             [to (move_-from (car move-list))]
+             [rate (move_-val (car move-list))]
+             [from (move_-to (car move-list))]
+             [ball (cdr (search-ball from (move_-player move)))])
+        (begin
+          (send ball index-set! to)
+          (undo-many-move (cdr move-list))))))
+
+
+(define (do-many-move move-list);;;(mlist mov3 mov2 mov1)
+  (define (helper mlist)
+    (if (null? mlist) (void)
+        (let*([move (car move-list)]
+              ;[color (send player get-color)]
+              [from (move_-from (car mlist))]
+              [rate (move_-val (car mlist))]
+              [to (move_-to (car mlist))]
+              [ball (cdr (search-ball from (move_-player move)))])
+          (begin
+            (send ball index-set! to)
+            (do-many-move (cdr mlist))))))
+  (helper (reverse move-list)))
+;
+;  
+;  (let ([rmlist (reverse (move-list))])
+
+
+
+
+
+
+
+(define no-human-ply 8)
+(require graphics/graphics)
+(open-graphics)
+
+(include "options.scm")
+
+
+(include "assign-players.scm")
+
+
+(define view-port (open-viewport "Chinese Checkers" (make-posn (* 5 l) 750)))
+
+(define option (open-viewport "Options Window" (make-posn 500 500)))
+
+((draw-solid-rectangle view-port) (make-posn 0 0)1000 750 "white")
+
+(include "AI.scm")
+
+
+(include "play.scm")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;     
+;;;;;;Graphics;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (change-a-bit i)
+  (make-posn (- (car i) (/ rect-size 2)) (- (cdr i) (/ rect-size 2))))     
+
+(define  (draw-all-holes)
+  (define (helper i j)
+    (let* ([hole (send cur-board get-elm i j)]
+           [pos (send hole get-position)])
+      (begin
+        (cond[(equal? 'invalid pos) (void)]
+             [else ((draw-pixmap view-port) "hole.png" (change-a-bit pos))])
+        (cond[(and (= 16 i) (= 16 j)) (void)]
+             [(= 16 j) (helper (+ i 1) 0)]
+             [else (helper i (+ j 1))]))))
+  (helper 0 0))
+
+
+
+(define (draw-all-balls)
+  (define (helper i)
+    (let* ([elem (vector-ref all-balls i)]
+           [balls (vector->list (send elem get-all-balls))]
+           [col (send elem get-color)]
+           [png (string-append
+                 (symbol->string col)
+                 ".png")])
+      
+      (begin
+        (foldr (lambda(x res) 
+                 ((draw-pixmap view-port)  png (change-a-bit (send x get-position))))
+               (void)
+               balls)
+        (if(= i 5) (void) (helper (+ i 1))))))
+  (helper 0))
+
+
+
+(define (connect-all-holes)
+  (define (helper i j)
+    (begin
+      (if (not (equal? 'invalid (send (send cur-board get-elm i j) get-state)))
+          (let*([x1 (cons (- i 1) (- j 1))]
+                [x2 (cons (- i 1)  j)]
+                [x3 (cons  i (+ 1 j))]
+                [x4 (cons (+ i 1) (+ j 1))]
+                [x5 (cons (+ i 1) j)]
+                [x6 (cons i  (- j 1))]
+                [p1 (make-posn (car (get-position-from-index i j))
+                               (cdr (get-position-from-index i j)))])
+            
+            (begin
+              (define l (list x1 x2 x3 x4 x5 x6))
+              (set! l (map (λ(x) (if (and (<= 0 (car x)) (>= 16 (car x))
+                                          (<= 0 (cdr x)) (>= 16 (cdr x))
+                                          (not (equal? 'invalid (send (send cur-board get-elm (car x) (cdr x)) get-state))))
+                                     x
+                                     #f)) l))
+              
+              
+              (foldr (lambda(x res)
+                       (if(not x) (void)
+                          ((draw-line view-port) p1 (make-posn (car  (get-position-from-index (car x) (cdr x)))
+                                                               (cdr (get-position-from-index (car x) (cdr x)))) "indianred")))
+                     (void)
+                     l)))
+          (void))
+      (cond[(and (= i 16) (= j 16)) (void)]
+           [(= j 16) (helper (+ i 1) 0)]
+           [else (helper i (+ j 1))])))
+  (helper 0 0))
+
+
+(define (draw-board)
+  (begin
+    (connect-all-holes)       
+    (draw-all-holes)
+    (draw-all-balls)
+    ))
+
+(define (get-ball hole) ;;;this function returns which ball is present in the hole
+  
+  (define (get-ball1 vec)
+    (define (helper i)
+      (cond [(= i l) #f]
+            [(equal? (vector-ref vec i) #f) (helper  (+ i 1))]
+            [else (vector-ref vec i)]))
+    (helper 0))
+  
+  (define st (send hole get-state))
+  
+  (cond [(or (equal? 'null st) (equal? 'invalid st)) 'no-ball]
+        [else (let* ([i (color->index st)]
+                     [ball-set (vector-ref all-balls i)]
+                     [balls (send ball-set get-all-balls)]
+                     [ind (send hole get-index)]
+                     [new-vec (vector-filter (lambda (x) (if (equal? ind (send x get-index)) x #f)) balls)])
+                (get-ball1 new-vec))]))
+;(define mouse-clk (get-mouse-click view-port))
+;(define mouse (mouse-click-posn mouse-clk))
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(cons (posn-x mouse) (posn-y mouse))
+;
+;(send (find-ball
+;       (posn-x mouse) (posn-y mouse)) get-index)  
+; 
+;
+;
+;
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(send (find-ball (posn-x mouse) (posn-y mouse)) get-index)
+;
+;       
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(send (find-ball (posn-x mouse) (posn-y mouse)) get-index)
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(send (find-ball (posn-x mouse) (posn-y mouse)) get-index)
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(send (find-ball (posn-x mouse) (posn-y mouse)) get-index)
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(send (find-ball (posn-x mouse) (posn-y mouse)) get-index)
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(send (find-ball (posn-x mouse) (posn-y mouse)) get-index)
+;(set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;(send (find-ball (posn-x mouse) (posn-y mouse)) get-index)
+;
+;
+;(define (loop i)
+; (if (= i 20) (void) 
+;     (begin
+;       (set! mouse (mouse-click-posn (get-mouse-click view-port)))
+;       (display(send (find-ball (posn-x mouse) (posn-y mouse)) get-index))
+;       (loop (+ i 1)))))
+;
+;(loop 0)
+
+
+;(define player1 (new ball-set% [col 'blue]))
+
+(define clk-state 0)
+
+
+
+;(define (clicking) 
+;  (begin
+;    (let* ([mouse-clk (get-mouse-click view-port)]
+;           [mouse (mouse-click-posn mouse-clk)])
+;      (let ([x (find-ball (posn-x mouse) (posn-y mouse))])
+;        (cond [(not x) (clicking)]
+;              ;[(right-mouse-click? mouse-clk) (right-mouse x)]   ;;;left mouse click implies the jump is not complete yet
+;              [(equal? 'null (send x get-state)) (clicking)]
+;              [(left-mouse-click? mouse-clk) (left-mouse x)] ;;
+;              )))))
+;
+;(define (show x ) (begin (display x) x))
+;
+;(define (left-mouse hole)
+;  (let* ([mouse-clk (get-mouse-click view-port)]
+;         [mouse (mouse-click-posn mouse-clk)])
+;    (let ([x (find-ball (posn-x mouse) (posn-y mouse))])
+;      (cond [(not x) (left-mouse hole)]
+;            [(or (right-mouse-click? mouse-clk) (not (equal? (send x get-state) 'null))) (clicking)] 
+;            ;[(left-mouse-click? mouse-clk) (right-mouse hole x)]
+;            [(left-mouse-click? mouse-clk) (if (equal? (send x get-state)'null);;;remember to put an if here
+;                                               ;for the if the hole doesnot contain a ball
+;                                               (let* ([ball (get-ball hole)])
+;                                                 (if ball
+;                                                     (let* ([moves (send ball get-possible-index)]
+;                                                            [s (my-assq (send x get-index) moves)])
+;                                                       (begin
+;                                                         (display moves)
+;                                                         (newline)
+;                                                         (if (not s) (clicking)
+;                                                             (begin
+;                                                               (send ball index-set! (send x get-index))
+;                                                               (let ([col (send ball get-color)]
+;                                                                     [posin (change-a-bit(send hole get-position))]
+;                                                                     [posfin (change-a-bit(send x get-position))])
+;                                                                 (begin
+;                                                                   ((draw-pixmap view-port) "hole.png" posin)
+;                                                                   ((draw-pixmap view-port) (string-append (symbol->string col) ".png") posfin)))
+;                                                               (clicking)))))(clicking)))
+;                                               (clicking))]))))
+;
+;;(define (change-pos-a-bit i)
+;  (make-posn (car i) (cdr i)))
+;
+;(define (right-mouse hole x)
+;  (let* ([ball (get-ball hole)]
+;         [moves (send ball get-possible-index)]
+;         [s (my-assq (send x get-index) moves)])
+;    (if (not s) (left-mouse hole)
+;        (begin
+;          (send ball index-set! (send x get-index))
+;          (let ([col (send ball get-color)]
+;                [posin (change-a-bit(send hole get-position))]
+;                [posfin (change-a-bit(send x get-position))])
+;            (begin
+;              ((draw-pixmap view-port) "hole.png" posin)
+;              ((draw-pixmap view-port) (string-append (symbol->string col) ".png") posfin)))
+;          (clicking)))))
+;
+
+
+(open-options)
+   
+
+
+
+
+

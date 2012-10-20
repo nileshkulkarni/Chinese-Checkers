@@ -1,0 +1,183 @@
+;;;;;;;;;macro-definations;;;;;;;;;;;;;;
+
+
+(define star-size-x 1000)
+(define mid-x 500)
+(define l 200)
+(define y-top-point 15)
+(define star-height (*  2 (sqrt 3) l))
+(define rect-size 30)
+(define ver-offset 40)
+(define hor-offset 40)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (my-assq p l)
+  (cond [(null? l) #f]
+        [(equal? p (caar l)) (car l)]
+        [else (my-assq p (cdr l))]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (evaluate-board player)
+  
+  (define (f r-no c-no) ;r-no :  row number ;c-no :column number
+    (/ (- (* 500 r-no) (abs (- c-no 8))) 1000))
+  
+  (define balls (vector->list (send player get-all-balls)))
+  (define (sum l) (foldr (lambda (fst acc) (+ fst acc)) 0 l))
+  
+  
+  (define (rotate-function player)
+    (let ([col (send player get-color)])
+    (cond [(equal? col 'red) r]
+          [(equal? col 'blue) bl]
+          [(equal? col 'green) g]
+          [(equal? col 'black) b]
+          [(equal? col 'orange) o]
+          [(equal? col 'yellow) y])))
+  
+  (cond [(equal? (send player get-color) 'orange) 
+         (define bindex 
+           (map (lambda(p) (let([i (send p get-index)]) ((rotate-function player) (cdr i) (car i)))) 
+                balls))
+         (sum bindex)]
+        
+        [(equal? (send player get-color) 'blue) 
+         (define bindex 
+           (map 
+            (lambda(p) (let([i (send p get-index)]) (f (cdr i) (- 16 (car i))))) 
+            balls))
+         (sum bindex)]
+        )
+  
+  )
+
+
+
+(define (nearest-integer x)
+  (- (floor (* 2 x)) (floor x)))
+
+
+(define (find-ball x y)
+  
+  
+  (define (determine-row y-pos)
+    (let* ([y2 (/ (- y-pos 55) ver-offset)]
+           [y1 (nearest-integer y2)])
+      ;(if (>= (/ rect-size 2) ;(abs (- y-pos ( * y1 ver-offset)))) (- y1 1) (- y1 2))))
+      y1))
+  
+  (define row (determine-row y))
+  ;(display row)
+  (define row-vec (if (and (< row 0) (> row 17)) #f
+                      (send cur-board get-row row)))
+  
+  
+  (define clicked-status 
+    (if (not row-vec) (list #f)
+        (vector-map (lambda (q) 
+                      (if (equal?(send q get-state) 'invalid) #f    
+                          (let* ([pos (send q get-position)]
+                                 [x-p (car pos)]
+                                 [y-p (cdr pos)])
+                            (if (<=  (abs (- x-p x)) (/ rect-size 2)) q #f)))) row-vec)))
+  
+  (define l (vector-length row-vec))
+  
+  (define (find-hole vec)
+    (define (helper i)
+      (cond [(= i l) #f]
+            [(equal? (vector-ref vec i) #f) (helper  (+ i 1))]
+            [else (vector-ref vec i)]))
+    (helper 0))
+  (begin 
+    ;(display rect-size)
+    (find-hole clicked-status)))
+
+(define (color->index c)
+  (cond[(equal? c 'blue) 0]
+       [(equal? c 'green) 1]
+       [(equal? c 'black) 2]
+       [(equal? c 'yellow) 3]
+       [(equal? c 'orange) 4]
+       [(equal? c 'red) 5]
+       [else (error "wrong arguments to color->index")]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (obtain-color x y)
+  (cond [(and (>= x 0) (< x 4)) (if(and (>= y 4) (<= y (+ 4 x))) 'blue 'invalid)] ;4 dekh le yar kyun likha hai chamak jayega
+        [(and (>= x 4) (<= x 8)) (cond [(and (>= y (-  x 4)) (<= y 3)) 'green]
+                                       [(and (> y 3) (<= y (+ 4 x))) 'null]
+                                       [(and (> y (+ 4 x)) (<= y 12)) 'black]
+                                       [else 'invalid])]
+        [(= x 8) 'invalid]
+        [(and (>= x 9) (< x 13)) (cond [(and (>= y 4) (<= y (- x 5))) 'yellow]
+                                       [(and (> y (- x 5)) (<= y 12)) 'null]
+                                       [(and (>= y 13) (<= y (+ 4 x))) 'orange]
+                                       [else 'invalid])]
+        [(and (>= x 13) (< x 17)) (if(and (>= y (- x 4)) (<= y 12)) 'red 'invalid)]
+        [else (error "wrong arguments to obtain-color :you are out of your mind : index given :not in the array")]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (get-position-from-index i j)
+  (cond [(and (<= 0 i) ( >= 3 i)) (let ([no-balls (+ i 1)])
+                                    (if (= (remainder no-balls 2) 1)
+                                        (let ([k (+ 4 (quotient no-balls 2))])
+                                          (if (and (<= 4 j) (>= (+ 4 i) j)) 
+                                              (cons (+ mid-x (* (- j k) hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                              (begin (display i) (newline) (display j)
+                                                     (error "no such valid index"))))
+                                        (let([k (/ (+ 7   no-balls) 2)])
+                                          (if (and (<= 4 j) (>= (+ 4 i) j))
+                                              (cons (+ mid-x (* (- j k) hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                              (error "no such valid index")))))]
+        [(and (<= 4 i) (<= i 7)) (let ([no-balls (- 17 i)])
+                                   (if (= (remainder i 2) 0)
+                                       (let ([k (+ (- i 4) (quotient no-balls 2))])
+                                         (if (and (<= j 12) (>=  j (- i 4))) 
+                                             (cons (+ mid-x (* (- j k)  hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                             (error "no such valid index")))
+                                       (let ([k  (+ (- i 4) (/ ( - no-balls 1 ) 2))])
+                                         (if (and (>= 12 j) (<= (- i 4) j))
+                                             (cons (+ mid-x (* (- j k)  hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                             (error "no such valid index")))))]
+        
+        [(and (<= 9 i) (<= i 12)) (let ([no-balls (+ 1 i)])
+                                    (if (= (remainder i 2) 0)
+                                        (let ([k (+ 4 (quotient  no-balls 2))])
+                                          (if (and (>= (+ 13 i) j) (<= 4 j)) 
+                                              (cons (+ mid-x (* (- j k) hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                              (error "no such valid index")))
+                                        (let ([k (/  (+ 7 no-balls) 2)])
+                                          (if (and (>= (+ i 13) j) (<=  4 j))
+                                              (cons (+ mid-x (* (- j k)  hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                              (begin (display i) (display j)
+                                                     (error "no such valid index"))))))]
+        [(and (<= 13 i) (<= i 16) (let ([no-balls (- 17 i)])
+                                    (if (= (remainder i 2) 0)
+                                        (let ([k (+  (- i 4) (quotient no-balls 2))])
+                                          (if (and (>= 12 j) (>= (- 28 i) j)) 
+                                              (cons (+ mid-x (* (- j k)  hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                              (begin (display i) (display j)
+                                                     (error "no such valid index"))))
+                                        (let ([k (+ (- i 4)  (/ (- no-balls 1 ) 2))])
+                                          (if (and (>= 12 j) (<= (+ 9 (- i 13))  j)) 
+                                              (cons (+ mid-x (* (- j k)  hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                                              (error "no such valid index"))))))]
+        
+        [(= i 8) (let ([no-balls 8])
+                   (let ([k (+ 4 (quotient  no-balls  2))])
+                     (if (and (>= 12 j) (<= 4 j))
+                         (cons (+ mid-x (* (- j k)  hor-offset)) (+ y-top-point (* (+ i 1) ver-offset)))
+                         (error 
+                          "invalid index"))))
+                 ]))
+
+
+
+
+
+
+
+
